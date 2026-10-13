@@ -1,0 +1,43 @@
+# Environments
+.venv/
+venv/
+env/
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Notebooks, IDE, OS
+.ipynb_checkpoints/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Secrets and configuration
+.env
+.env.*
+!.env.example
+
+# Experiment outputs, models and logs
+results/
+outputs/
+checkpoints/
+wandb/
+runs/
+logs/
+*.pt
+*.pth
+*.ckpt
+*.npz
+*.npy
+*.h5
+*.hdf5
+
+# Build
+build/
+dist/
+*.egg-info/
