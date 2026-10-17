@@ -1,0 +1,43 @@
+# OpenEvolve + OpenAI API (separate API billing from ChatGPT subscription).
+# Supply OPENAI_API_KEY in your shell; never commit secrets.
+max_iterations: 40
+checkpoint_interval: 10
+random_seed: 2026
+log_level: INFO
+diff_based_evolution: true
+max_code_length: 3000
+enforce_evolve_blocks: true
+llm:
+  primary_model: gpt-5-mini
+  primary_model_weight: 1.0
+  secondary_model: gpt-5-mini
+  secondary_model_weight: 0.0
+  api_base: https://api.openai.com/v1
+  api_key: ${OPENAI_API_KEY}
+  temperature: 0.65
+  max_tokens: 4096
+  timeout: 120
+prompt:
+  system_message: >-
+    You are designing a FIXED-TOPLOGY quantum transport circuit for the
+    SIX-PARAMETER Heston family. The input is a fixed, pre-prepared reference
+    amplitude state, and the architecture must reach targets throughout
+    the original six-parameter Heston box. Edit ONLY WORDS within EVOLVE
+    markers. Each word is length 8 with q0 FIRST, contains letters I,X,Y,Z,
+    and must contain an ODD number of Y. Allowed support is contiguous 1-4
+    positions or an arbitrary pair. Use at most 20 words and a conservative
+    maximum of 60 CNOTs, counted as 2*(support-1) each. The angles vary with
+    Heston parameters but the gate layout does NOT. The evaluator tests
+    difficult Heston state targets including domain corners, prioritising
+    worst-case oracle fidelity, then gate cost. Do NOT write an optimizer,
+    execute new code, or alter any other file, dataset, or evaluation logic.
+    Propose structurally diverse Pauli interactions and orderings; high
+    local tangent coverage is helpful but far-target fidelity matters.
+evaluator:
+  timeout: 240
+  parallel_evaluations: 1
+  cascade_evaluation: false
+database:
+  population_size: 40
+  archive_size: 20
+  num_islands: 2

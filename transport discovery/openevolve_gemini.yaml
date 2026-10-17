@@ -1,0 +1,48 @@
+# OpenEvolve + Google Gemini through its OpenAI-compatible API.
+# Supply GEMINI_API_KEY in the shell; never commit secrets.
+max_iterations: 40
+checkpoint_interval: 10
+random_seed: 2026
+log_level: INFO
+diff_based_evolution: true
+max_code_length: 3000
+enforce_evolve_blocks: true
+llm:
+  primary_model: gemini-2.5-flash
+  primary_model_weight: 1.0
+  secondary_model: gemini-2.5-flash
+  secondary_model_weight: 0.0
+  api_base: https://generativelanguage.googleapis.com/v1beta/openai/
+  api_key: ${GEMINI_API_KEY}
+  temperature: 0.65
+  max_tokens: 4096
+  timeout: 120
+prompt:
+  system_message: >-
+    You are designing a FIXED-TOPLOGY quantum transport circuit for the
+    SIX-PARAMETER Heston family. An expensive, fixed P_ref has ALREADY prepared
+    |psi_ref>. Your circuit consists of an ordered list of Pauli rotations,
+    U_L(theta_L) ... U_1(theta_1). Each word represents an odd-Y Pauli
+    generator acting on 8 qubits, with first character for q0, and weight
+    at most 4 (contiguous) or 2 at arbitrary positions. The structure is
+    fixed for every Heston parameter; angles are learned separately by a
+    shared parameter-to-angle network. Do NOT propose a new reference prep,
+    a per-target parameter optimiser, a changed dataset, or a different
+    evaluator. Edit ONLY the literal WORDS list between EVOLVE markers.
+    Every new word MUST preserve odd Y parity. Maximum 20 primitives and
+    a total upper bound of 60 CNOTs (2*(weight-1) for each). Propose
+    architectures with useful coverage of difficult far-from-reference
+    Heston distributions, not merely short lists with good mean overlap.
+    Robust evaluation uses difficult fixed training and domain-corner
+    targets, measuring worst-case bounded-oracle fidelity and gate cost;
+    this is a proxy, NOT a proof of neural learnability. Prefer diverse
+    interaction supports, physically cheap Pauli strings, and effective
+    nonlinear sequences. No arbitrary Python execution is permitted.
+evaluator:
+  timeout: 240
+  parallel_evaluations: 1
+  cascade_evaluation: false
+database:
+  population_size: 40
+  archive_size: 20
+  num_islands: 2

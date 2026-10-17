@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import copy
+import math
 import numpy as np
 import torch
 from torch import nn
@@ -61,9 +62,25 @@ class TrainingResult:
     best_val_loss:float
 
 
+def robust_infidelity_loss(pred, target, *, tail_fraction: float = .25,
+                            tail_weight: float = .75):
+    """CVaR-style training objective: mean infidelity + hard-target tail.
+
+    Let e_i = 1 - F_i. We minimise (1-w)*mean(e) + w*mean(top_q(e)).
+    The top-q term discourages a network from sacrificing hard Heston
+    distributions to optimise easy high-overlap states. The minibatch tail is
+    a surrogate, not the actual worst case over the continuous domain.
+    """
+    infidelities = 1 - torch.sum(pred * target, dim=1).square()
+    n_worst = max(1, math.ceil(len(infidelities) * tail_fraction))
+    return ((1 - tail_weight) * infidelities.mean() +
+            tail_weight * torch.topk(infidelities, n_worst).values.mean())
+
+
 def train(candidate:Candidate,eta_train,psi_train,eta_val,psi_val,reference,
-          *,seed=2026,epochs=130,width=48,batch_size=32,patience=22,lr=0.003) -> TrainingResult:
-    """Train against *state fidelity*, not nonunique per-state oracle angles."""
+          *,seed=2026,epochs=130,width=48,batch_size=32,patience=22,lr=0.003,
+          tail_fraction=.25,tail_weight=.75) -> TrainingResult:
+    """Train a shared angle map using a worst-tail-weighted fidelity objective."""
     torch.manual_seed(seed)
     torch.set_num_threads(min(4,torch.get_num_threads()))
     model=TransportNN(candidate,width=width)
@@ -83,14 +100,14 @@ def train(candidate:Candidate,eta_train,psi_train,eta_val,psi_val,reference,
         for ids in np.array_split(perm,max(1,int(np.ceil(len(x)/batch_size)))):
             optim.zero_grad()
             pred=model(x[ids],ref)
-            loss=(1-torch.sum(pred*y[ids],dim=1)**2).mean()
+            loss=robust_infidelity_loss(pred,y[ids],tail_fraction=tail_fraction,tail_weight=tail_weight)
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(),5.)
             optim.step()
         model.eval()
         with torch.no_grad():
             val_pred=model(xv,ref)
-            val_loss=float((1-torch.sum(val_pred*yv,dim=1)**2).mean())
+            val_loss=float(robust_infidelity_loss(val_pred,yv,tail_fraction=tail_fraction,tail_weight=tail_weight))
         history.append({'epoch':epoch+1,'validation_infidelity':val_loss})
         if val_loss < best_val-1e-9:
             best_val=val_loss;best_state=copy.deepcopy(model.state_dict());since=0

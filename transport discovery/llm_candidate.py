@@ -9,6 +9,7 @@ Each word must have ODD number of Y and any number of X/Z/I.
 Allowed support <= 4 contiguous positions, or arbitrary 2-local pairs.
 The total standard CNOT upper bound must be <= 60.
 """
+# EVOLVE-BLOCK-START
 WORDS = [
     'YIIIIIII',
     'IYIIIIII',
@@ -17,3 +18,4 @@ WORDS = [
     'IIIZZYII',
     'IIIIIIYZ',
 ]
+# EVOLVE-BLOCK-END

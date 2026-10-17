@@ -27,12 +27,33 @@ class StateDataset:
     psi_test: np.ndarray
     psi_ref: np.ndarray
     eta_ref: np.ndarray
+    bin_edges: np.ndarray | None = None
 
 
-def amplitude(eta: np.ndarray, n_qubits: int, n_fft: int) -> np.ndarray:
-    """Return sqrt(discrete bin masses) for the fixed S0=100, T=1 law."""
-    param = HestonParameters(s0=100., maturity=1., **dict(zip(PARAMETER_NAMES, map(float, eta))))
-    return HestonModel(param).amplitude_state(n_qubits=n_qubits, n_fft=n_fft)
+def amplitude(eta: np.ndarray, n_qubits: int, n_fft: int,
+              bin_edges: np.ndarray | None = None) -> np.ndarray:
+    """Return sqrt(probability masses) on ONE shared log-price binning.
+
+    `bin_edges=None`: use this repository's fixed log-price grid.
+    `bin_edges=array`: rebin the analytic Heston CDF to the HISTORICAL
+    optimal-transport grid. This is essential for tangent and adversarial
+    fidelity comparisons against the original NPZ file.
+    """
+    param = HestonParameters(s0=100., maturity=1.,
+                             **dict(zip(PARAMETER_NAMES, map(float, eta))))
+    d = HestonModel(param).terminal_distribution(n_qubits=n_qubits,n_fft=n_fft)
+    if bin_edges is None:
+        return d.amplitudes
+    edges = np.asarray(bin_edges, dtype=float)
+    if edges.shape != (2**n_qubits+1,) or not np.all(np.diff(edges) > 0):
+        raise ValueError('Invalid historical log-price edges')
+    cdf = np.r_[0., np.cumsum(d.probabilities)]
+    probs = np.maximum(np.diff(np.interp(edges,d.log_price_edges,cdf,
+                                         left=0.,right=1.)),0.)
+    mass = float(probs.sum())
+    if mass < .999:
+        raise ValueError(f'Historical grid misses Heston distribution mass ({mass:.6g})')
+    return np.sqrt(probs/mass)
 
 
 def _stratified_lhs(total: int, seed: int) -> np.ndarray:
@@ -66,24 +87,14 @@ def create_dataset(s: Settings, external_npz: str | None = None) -> StateDataset
         tr, va, te = [np.asarray(z[k], dtype=int) for k in ('train_indices','validation_indices','test_indices')]
         if len(set(tr.tolist()+va.tolist()+te.tolist())) != len(tr)+len(va)+len(te):
             raise ValueError('Overlapping state-level splits')
-        # Fixed reference must be computed with *same* binning convention as NPZ.
-        # Original NPZ binning differs slightly from heston.py: use interpolation
-        # of the original quantile function instead of mixing conventions.
-        # The same reference is an independent theoretical Heston law, rebinned
-        # below using the original dataset's fixed edges.
-        from scipy.interpolate import interp1d
+        # All states, including reference, tangents, corners and adversarial
+        # probes, must be encoded using the same historical bin edges.
         if 'bin_edges' not in z:
             raise ValueError('Original dataset must contain bin_edges')
-        edges = np.asarray(z['bin_edges'])
-        dist = HestonModel(HestonParameters(**dict(zip(PARAMETER_NAMES, map(float,REFERENCE))))).terminal_distribution(
-            n_qubits=s.n_qubits,n_fft=s.n_fft)
-        source_edges = dist.log_price_edges
-        ref_cdf = np.r_[0., np.cumsum(dist.probabilities)]
-        ref_probs = np.maximum(np.diff(np.interp(edges, source_edges, ref_cdf, left=0., right=1.)), 0.)
-        if ref_probs.sum() < .999:
-            raise ValueError('Reference distribution falls outside supplied bins')
-        psi_ref = np.sqrt(ref_probs / ref_probs.sum())
-        return StateDataset(params[tr], psi[tr],params[va],psi[va],params[te],psi[te],psi_ref,REFERENCE.copy())
+        edges = np.asarray(z['bin_edges'],dtype=float)
+        psi_ref = amplitude(REFERENCE,s.n_qubits,s.n_fft,bin_edges=edges)
+        return StateDataset(params[tr],psi[tr],params[va],psi[va],
+                            params[te],psi[te],psi_ref,REFERENCE.copy(),edges)
 
     all_eta = _stratified_lhs(s.n_train + s.n_validation + s.n_test, s.seed)
     all_psi = np.stack([amplitude(eta, s.n_qubits, s.n_fft) for eta in all_eta])
@@ -95,7 +106,7 @@ def create_dataset(s: Settings, external_npz: str | None = None) -> StateDataset
     va = shuffled[s.n_train:s.n_train + s.n_validation]
     te = shuffled[s.n_train + s.n_validation:]
     return StateDataset(all_eta[tr],all_psi[tr],all_eta[va],all_psi[va],
-                        all_eta[te],all_psi[te],amplitude(REFERENCE,s.n_qubits,s.n_fft),REFERENCE.copy())
+                        all_eta[te],all_psi[te],amplitude(REFERENCE,s.n_qubits,s.n_fft),REFERENCE.copy(),None)
 
 
 def save_dataset_metadata(s: Settings, out: Path, external: str | None) -> None:

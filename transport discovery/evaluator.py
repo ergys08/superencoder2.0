@@ -24,7 +24,8 @@ def fidelity(target, prepared) -> float:
 
 
 def reference_parameter_tangents(s: Settings, ref_eta: np.ndarray,
-                                 reference: np.ndarray, fraction: float = 0.002) -> np.ndarray:
+                                 reference: np.ndarray, fraction: float = 0.002,
+                                 bin_edges: np.ndarray | None = None) -> np.ndarray:
     """Finite-difference derivatives w.r.t. *normalised* six Heston inputs.
 
     A unit of normalised parameter corresponds to the original range width.
@@ -35,7 +36,7 @@ def reference_parameter_tangents(s: Settings, ref_eta: np.ndarray,
         h=fraction*(BOUNDS[j,1]-BOUNDS[j,0])
         lo=ref_eta.copy();hi=ref_eta.copy()
         lo[j]-=h;hi[j]+=h
-        vec=(amplitude(hi,s.n_qubits,s.n_fft)-amplitude(lo,s.n_qubits,s.n_fft))/(2*fraction)
+        vec=(amplitude(hi,s.n_qubits,s.n_fft,bin_edges)-amplitude(lo,s.n_qubits,s.n_fft,bin_edges))/(2*fraction)
         # Remove tiny norm/phase differentiation noise.
         vec=vec - reference*np.dot(reference,vec)
         cols.append(vec)

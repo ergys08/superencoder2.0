@@ -188,3 +188,163 @@ python "transport discovery/inference.py" \
 ```
 
 The returned angles define a circuit to apply **after** the fixed reference state has been prepared. `--qpy` exports the circuit in Qiskit's binary format; it is deliberately ignored by Git if stored inside `results/`.
+
+## 9. Robust family-wide objective (October 2026 update)
+
+**The goal is *one fixed reference preparation* followed by *one fixed transport
+architecture* whose angles depend on any target Heston parameter tuple.** The
+parameters remain exactly as defined in Section 1. Unlike the initial pilot,
+we now explicitly optimise **poorly served regions of the entire admissible
+six-dimensional box**, not just average fidelity on random models.
+
+Let the frozen transport map be
+
+\[
+F_\phi(\eta;\mathcal A)
+=|\langle\psi_\eta|T_{\mathcal A}(f_\phi(\eta))|\psi_{\rm ref}\rangle|^2.
+\]
+
+The ideal target is
+
+\[
+\max_{\mathcal A,\phi}\;\inf_{\eta\in\Omega} F_\phi(\eta;\mathcal A)
+\quad\text{subject to a compiled CNOT budget.}
+\]
+
+**This implementation only APPROXIMATES that minimax objective.** It is not
+a proof of universal fidelity. The following sequence is used:
+
+1. **Candidate search:** reference-state tangent coverage and a CX penalty
+   screen many topologies. The finite-budget *oracle* now includes the same
+   fixed difficult domain-corner targets for every architecture and ranks by
+   the **lowest per-target oracle fidelity**, not the average. Oracle angles
+   are a diagnostic only and never used at deployment.
+2. **Shared NN training:** optimise a tail-sensitive objective
+   \((1-\lambda)\operatorname{mean}(1-F)+\lambda\operatorname{CVaR}_{q}(1-F)\),
+   with \(q=25\%\) and \(\lambda=0.75\) by default. The CVaR approximation
+   averages the worst-loss examples in each minibatch. This prioritises hard
+   targets but is not a global worst-case guarantee.
+3. **Finalist selection (robustness validation):** after training, evaluate
+   all **64 six-dimensional parameter-box corners**, another **128 independent
+   interior samples**, and an adversarial **differential-evolution** search
+   that tries to find parameters of lowest fidelity. Require the worst
+   **observed** fidelity and the ordinary validation 5th percentile to exceed
+   the user-chosen threshold (default 0.9999). Of feasible architectures,
+   select the cheapest compiled CX count. If none passes, report FAILURE and
+   select the architecture with highest observed minimum for diagnosis.
+4. **Final test/audit:** freeze the architecture and NN and only then evaluate
+   the original held-out test states plus all 64 corners, **512 fresh interior
+   samples** and another independently seeded adversarial search. These
+   final results NEVER feed back into model selection.
+
+The 64 *public deterministic corners* necessarily recur in validation and
+final audit. Only the interior/adversarial random seeds are independent. The
+adversarial optimiser is a numerical stress test, not a certification of the
+continuous minimum. New risk measures and sample budgets are in `config.py`.
+The `--quick` run uses much smaller budgets and is NOT evidence of coverage.
+
+Outputs include `finalist_#_robust_validation.npz`,
+`robustness_audit.json`, `robustness_audit.npz`. Every adversarial worst-case
+parameter vector, fidelity, evaluation count and source is recorded. The
+`summary.json` status is `robust_threshold_not_met` unless validation and
+final audit both meet their thresholds. The Heston state encoding, including
+all corners and adversarial states, uses the original saved NPZ's log-price
+bin edges when `--dataset` is supplied (no mixing of bin conventions).
+
+### Robustness CLI
+
+```bash
+python "transport discovery/run.py" --output "transport discovery/results/robust" \
+  --robust-validation-samples 256 --robust-test-samples 1024 \
+  --adversarial-iters 30
+```
+
+More samples and more adversarial iterations give a stronger **empirical**
+challenge, at additional CPU expense. Even exhaustive testing of the 64
+vertices does not bound fidelity inside the parameter box.
+
+## 10. Run an actual LLM with OpenEvolve
+
+The default `run.py` still performs **NON-LLM evolutionary mutations**. An
+actual LLM run requires the separately installed OpenEvolve package and a
+provider API key. This project includes working provider templates based on
+OpenEvolve's public configuration (`openevolve_gemini.yaml` and
+`openevolve_openai.yaml`). In both cases **API requests may incur charges**.
+A ChatGPT subscription does not provide OpenAI API credits.
+
+From the `superencoder2.0` root in your activated virtual environment:
+
+```bash
+python -m pip install -r requirements.txt
+python -m pip install openevolve
+```
+
+**Option A — Gemini** (get an API key at https://aistudio.google.com/apikey):
+
+```bash
+# Type your own API key; do NOT paste it into a shared repo or commit it.
+read -s GEMINI_API_KEY; echo
+export GEMINI_API_KEY
+
+openevolve-run "transport discovery/llm_candidate.py" \
+  "transport discovery/openevolve_evaluator.py" \
+  --config "transport discovery/openevolve_gemini.yaml" \
+  --iterations 40 --output "transport discovery/results/llm"
+```
+
+**Option B — OpenAI API** (create an API key at https://platform.openai.com/api-keys):
+
+```bash
+read -s OPENAI_API_KEY; echo
+export OPENAI_API_KEY
+
+openevolve-run "transport discovery/llm_candidate.py" \
+  "transport discovery/openevolve_evaluator.py" \
+  --config "transport discovery/openevolve_openai.yaml" \
+  --iterations 40 --output "transport discovery/results/llm"
+```
+
+Use your shell prompt to enter the key after `read -s` (input is hidden).
+You can change model names/iterations in your local YAML file. The two
+providers are mutually exclusive alternatives: choose one. For a small
+paid-model test, use `--iterations 5` initially.
+
+**Important search limitations:** OpenEvolve changes the *literal ordered
+Pauli-word list*, meaning primitive type, location, ordering and count.
+The LLM does **not** yet invent new gate decompositions or arbitrary
+transport algorithms in this controlled search grammar. The independent
+`openevolve_evaluator.py` never executes untrusted generated Python: it
+parses `WORDS` with `ast.literal_eval`. Its ranking score is based on the
+**worst finite-budget per-target oracle fidelity** on six ordinary training
+states plus six publicly prescribed difficult corners, with a tangent/CX
+penalty. This provides inexpensive architecture guidance, **not** a direct
+measure of the learned map's worst-case fidelity. The robust trained-NN
+comparison is performed in the next stage.
+
+**Extract distinct architectures from OpenEvolve's checkpoints** (including
+intermediate programs; this is more useful than taking just the last winner):
+
+```bash
+python "transport discovery/extract_proposals.py" \
+  --checkpoints "transport discovery/results/llm/checkpoints" \
+  --out "transport discovery/results/llm/proposals.json"
+```
+
+**Fit shared NN angle maps and test these LLM proposals** (no random mutants):
+
+```bash
+python "transport discovery/run.py" \
+  --proposals "transport discovery/results/llm/proposals.json" \
+  --proposal-only \
+  --output "transport discovery/results/llm_verified"
+```
+
+To compare fairly against non-LLM evolutionary candidates, run the main
+`run.py` without `--proposals`, using comparable numbers of oracle-screened
+and NN-finalist architectures. The LLM evaluator's scores alone cannot be
+compared directly with final NN-based transport fidelity.
+
+The saved files `validation.csv`, `robustness_audit.json` and `summary.json`
+are the most important results. Treat an LLM architecture that fails the
+observed worst-case threshold as a **negative result**, not a successful
+family-wide transport circuit.

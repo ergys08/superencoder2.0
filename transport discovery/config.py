@@ -42,6 +42,17 @@ class Settings:
     nn_batch: int = 32
     nn_patience: int = 22
     target_fidelity: float = 0.9999
+    # Fraction of highest-infidelity examples included in each CVaR-like loss.
+    nn_tail_fraction: float = 0.25
+    nn_tail_weight: float = 0.75
+    # Finalist SELECTION probes: all corners + seeded interior + adversarial.
+    robustness_validation_interior: int = 128
+    robustness_validation_adversarial_iters: int = 6
+    robustness_validation_adversarial_popsize: int = 4
+    # Final WINNER audit: different random/adversarial seed, no re-selection.
+    robustness_test_interior: int = 512
+    robustness_test_adversarial_iters: int = 18
+    robustness_test_adversarial_popsize: int = 6
 
     def validate(self) -> None:
         if not 2 <= self.n_qubits <= 12:
@@ -56,3 +67,12 @@ class Settings:
             raise ValueError('max_support must be between 1 and n_qubits')
         if not (0 < self.target_fidelity <= 1):
             raise ValueError('Invalid fidelity target')
+        if not (0 < self.nn_tail_fraction <= 1 and 0 <= self.nn_tail_weight <= 1):
+            raise ValueError('Invalid NN tail loss configuration')
+        budgets = (self.robustness_validation_interior, self.robustness_test_interior,
+                   self.robustness_validation_adversarial_iters,
+                   self.robustness_test_adversarial_iters,
+                   self.robustness_validation_adversarial_popsize,
+                   self.robustness_test_adversarial_popsize)
+        if min(budgets) < 0:
+            raise ValueError('Robustness budgets must be nonnegative')

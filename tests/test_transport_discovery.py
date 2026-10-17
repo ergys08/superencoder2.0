@@ -108,3 +108,97 @@ def test_qiskit_compiler_matches_simulator_if_available():
     actual=Statevector(ref).evolve(qc).data
     expected=simulate(ref,prims,angles)
     np.testing.assert_allclose(actual,expected,atol=1e-11)
+
+# ---- Robust objective / domain tests added in October 2026 ----
+
+def test_all_64_corners_cover_exact_original_box():
+    from robustness import corners
+    c = corners()
+    assert c.shape == (64, 6)
+    assert len(np.unique(c,axis=0)) == 64
+    assert ((c == BOUNDS[:,0]) | (c == BOUNDS[:,1])).all()
+    np.testing.assert_allclose(c[0],BOUNDS[:,0])
+    np.testing.assert_allclose(c[-1],BOUNDS[:,1])
+
+
+def test_independent_random_domain_samples_are_seeded():
+    from robustness import interior
+    p = interior(20,seed=17)
+    assert p.shape == (20,6)
+    assert ((p>BOUNDS[:,0]) & (p<BOUNDS[:,1])).all()
+    np.testing.assert_allclose(p, interior(20,17))
+    assert not np.allclose(p,interior(20,18))
+
+
+def test_robust_loss_hard_samples_receive_greater_weight():
+    import torch
+    from learner import robust_infidelity_loss
+    t = torch.tensor([[1.,0.],[1.,0.],[1.,0.],[1.,0.]],dtype=torch.float64)
+    p = torch.tensor([[1.,0.],[1.,0.],[1.,0.],[0.,1.]],dtype=torch.float64)
+    ordinary = float(robust_infidelity_loss(p,t,tail_fraction=.25,tail_weight=0))
+    risk = float(robust_infidelity_loss(p,t,tail_fraction=.25,tail_weight=.75))
+    assert ordinary == pytest.approx(.25)
+    assert risk == pytest.approx(.8125)
+
+
+def test_robustness_audit_detects_corner_failure_and_reports_not_certified():
+    from robustness import audit
+    # Tiny 2-qubit Heston dataset ensures this test is cheap and independent.
+    from data import amplitude
+    s = Settings(n_qubits=2,n_fft=512,n_train=2,n_validation=2,n_test=2)
+    ref = amplitude(REFERENCE,s.n_qubits,s.n_fft)
+    class IdentityModel:
+        def eval(self):return self
+        def __call__(self,eta,reference):return reference.expand(len(eta),-1)
+        def angles(self,eta):
+            import torch
+            return torch.zeros((len(eta),1),dtype=torch.float64)
+    rep=audit(IdentityModel(),ref,s,seed=5,n_interior=3,
+              adversarial_maxiter=0,adversarial_popsize=0)
+    assert rep.n_corners == 64
+    assert rep.n_interior == 3
+    assert rep.adversarial_min_fidelity is None
+    assert rep.observed_min_fidelity <= rep.observed_mean_fidelity <= 1
+    assert rep.summary()['note'].endswith('NOT a global certificate.')
+
+
+def test_rebinned_amplitudes_on_same_edges_as_reference():
+    from data import amplitude
+    from heston import HestonParameters, HestonModel
+    p=HestonModel(HestonParameters(s0=100.,maturity=1.,
+                                  mu=float(REFERENCE[0]),v0=float(REFERENCE[1]),
+                                  kappa=float(REFERENCE[2]),theta=float(REFERENCE[3]),
+                                  xi=float(REFERENCE[4]),rho=float(REFERENCE[5])))
+    dist=p.terminal_distribution(n_qubits=3,n_fft=512)
+    a=amplitude(REFERENCE,3,512,dist.log_price_edges)
+    np.testing.assert_allclose(a,dist.amplitudes,rtol=0,atol=1e-10)
+
+
+def test_proposal_extractor_never_executes_code(tmp_path):
+    from extract_proposals import extract
+    one=tmp_path/'a.py';one.write_text("WORDS=['YII','IYZ']")
+    two=tmp_path/'b.py';two.write_text("WORDS=['YII','IYZ']")
+    bad=tmp_path/'bad.py';bad.write_text('raise RuntimeError(\"must not execute\")')
+    # Extractor expects 8-qubit words. The two 3-qubit examples should be
+    # rejected safely; the unsafe file should not run either.
+    result,report=extract([one,two,bad])
+    assert result==[]
+    assert report['rejected']==3
+
+
+def test_proposal_extractor_accepts_valid_architecture(tmp_path):
+    from extract_proposals import extract
+    from openevolve_evaluator import parse_words
+    source=ROOT/'transport discovery'/'llm_candidate.py'
+    c=parse_words(source)
+    proposals,stats=extract([source,source])
+    assert stats['accepted']==1
+    assert stats['rejected']==0
+    assert proposals==[{'words':list(c.words)}]
+
+
+def test_llm_provider_configs_have_no_embedded_secret():
+    for name in ('openevolve_gemini.yaml','openevolve_openai.yaml'):
+        contents=(DIR/name).read_text()
+        assert 'api_key: ${' in contents
+        assert 'enforce_evolve_blocks: true' in contents
