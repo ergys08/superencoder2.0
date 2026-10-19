@@ -231,3 +231,54 @@ Generate the complete data in one run, then open the plots and CSV files.
 6. Fixed `S0` and maturity; only the terminal log-price distribution is
    encoded, not the full time series. Model parameters should share the same
    physical units as the original experiment.
+
+## Shared SVD language: how many modes does any target need?
+
+**New command:** `five_mode_transport.rank_profile`.
+
+The discovery command already fits a **single common, weighted SVD basis** to
+the sampled reference-relative displacements `Q_eta - Q_ref`, without mean
+centring. It saves the ordered functions `b_1,...,b_K` to
+`transport_basis.npz`. These functions are the SAME for every target fitted
+to that saved file. The coefficients are target-specific and determined by
+orthogonal projection against the exact target quantiles.
+
+To study a particular target, evaluate EVERY prefix of that common basis:
+
+```bash
+python -m five_mode_transport.rank_profile \
+  --basis five_mode_transport/results/main/transport_basis.npz \
+  --eta 0.05 0.04 2.0 0.04 0.30 -0.70 \
+  --thresholds 0.99 0.999 0.9999 \
+  --out five_mode_transport/results/target_A
+```
+
+`rank_profile.json` gives a row for zero modes (identity), then 1 through the
+number of modes saved in the basis. For each rank it reports amplitude fidelity,
+projection residual, quantile error and whether monotonicity correction was
+needed. `rank_profile.csv`, `fidelity_by_mode.png` and
+`target_projection.npz` provide tabular, visual and numeric outputs.
+
+A threshold's `minimum_modes` is the first *observed* prefix attaining it.
+If no prefix passes, `minimum_modes` is `null`, rather than silently
+pretending that the maximum rank was sufficient. Binned fidelity is not
+necessarily monotone in rank.
+
+To compare another target, use the **same** `--basis` path with a different
+`--eta`. This is what makes mode counts meaningful *between targets*.
+
+To change the reference, use `--reference` when running
+`discover_transport_modes` and save a new basis. Different reference choices
+produce different transport languages. `--bounds-json` determines where
+the SVD is trained; it is not mathematically necessary for defining exact
+quantile transport, but it is necessary to specify which displacements the
+finite-dimensional modes should approximate well. Outside its fitted box,
+the rank-profile report prints an EXTRAPOLATION warning but still measures
+fidelity using the true Heston target.
+
+**Interpretation warning:** These are target-specific *oracle* coefficients,
+not a learned parameter-to-coefficient mapping, and not a quantum gate
+implementation. One target-specific bespoke displacement would trivially be
+one exact mode, so only compare modes drawn from the same precomputed basis.
+A six-parameter manifold need not lie in a six-dimensional *fixed linear*
+quantile space.
