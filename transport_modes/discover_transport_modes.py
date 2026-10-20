@@ -6,8 +6,8 @@ basis. Results answer whether k modes represent target Heston distributions,
 not whether a shallow quantum circuit implements those modes.
 
 From repository root:
-  python -m five_mode_transport.discover_transport_modes --out five_mode_transport/results/main
-  python -m five_mode_transport.discover_transport_modes --quick
+  python -m transport_modes.discover_transport_modes --out transport_modes/results/main
+  python -m transport_modes.discover_transport_modes --quick
 """
 from __future__ import annotations
 
@@ -439,7 +439,7 @@ def run(*,reference:np.ndarray,bounds:np.ndarray,cfg:QuantileConfig,
 
 def main()->None:
     ap=argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('--out',type=Path,default=Path('five_mode_transport/results/main'))
+    ap.add_argument('--out',type=Path,default=Path('transport_modes/results/main'))
     ap.add_argument('--reference',type=float,nargs=6,default=None,
                     help='Six Heston parameters; default original range midpoints')
     ap.add_argument('--historical-dataset',type=Path,default=None,

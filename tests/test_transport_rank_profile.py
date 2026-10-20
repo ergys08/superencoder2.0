@@ -1,8 +1,8 @@
 """Shared fixed SVD mode basis target-profile regression tests."""
 import numpy as np
-from five_mode_transport.discover_transport_modes import fit_reference_modes
-from five_mode_transport.heston_quantiles import QuantileConfig, ORIGINAL_BOUNDS, heston_quantiles
-from five_mode_transport.rank_profile import rank_profile, save_profile
+from transport_modes.discover_transport_modes import fit_reference_modes
+from transport_modes.heston_quantiles import QuantileConfig, ORIGINAL_BOUNDS, heston_quantiles
+from transport_modes.rank_profile import rank_profile, save_profile
 
 REF = ORIGINAL_BOUNDS.mean(axis=1)
 
@@ -14,7 +14,7 @@ def make_basis():
         vec[i] += 0.02 * (ORIGINAL_BOUNDS[i,1] - ORIGINAL_BOUNDS[i,0])
     quantiles = np.vstack([heston_quantiles(p, cfg).quantiles for p in params])
     modes, _, _ = fit_reference_modes(quantiles, r.quantiles, r.u, 5)
-    from five_mode_transport.heston_quantiles import grid_weights
+    from transport_modes.heston_quantiles import grid_weights
     return {
         "modes": modes, "weights": grid_weights(r.u),
         "reference_quantiles": r.quantiles, "reference_eta": REF,

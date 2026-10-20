@@ -1,11 +1,11 @@
 """Oracle-fit a saved reference-anchored transport basis to ANY Heston model.
 
 Examples (run from repository root):
-  python -m five_mode_transport.fit_transport \
-    --basis five_mode_transport/results/main/transport_basis.npz \
+  python -m transport_modes.fit_transport \
+    --basis transport_modes/results/main/transport_basis.npz \
     --eta 0.05 0.04 2.0 0.04 0.30 -0.70
-  python -m five_mode_transport.fit_transport \
-    --basis five_mode_transport/results/main/transport_basis.npz \
+  python -m transport_modes.fit_transport \
+    --basis transport_modes/results/main/transport_basis.npz \
     --eta 0.05 0.04 2.0 0.04 0.30 -0.70 --modes 5
 
 This computes TRUE target quantiles from the Heston model and projects their
@@ -130,7 +130,7 @@ def main()->None:
     p.add_argument('--eta',nargs=6,type=float,required=True,
                    metavar=tuple(k.upper() for k in PARAMETER_NAMES))
     p.add_argument('--modes',type=int,default=None,help='Override the recommended number of modes')
-    p.add_argument('--out',type=Path,default=Path('five_mode_transport/results/new_model'))
+    p.add_argument('--out',type=Path,default=Path('transport_modes/results/new_model'))
     args=p.parse_args()
     result=fit_model(args.eta,load_basis(args.basis),args.modes)
     args.out.mkdir(parents=True,exist_ok=True)

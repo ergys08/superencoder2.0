@@ -19,7 +19,7 @@ import sys
 import numpy as np
 from scipy.integrate import cumulative_trapezoid
 
-# Allow direct invocation: python five_mode_transport/heston_quantiles.py ...
+# Allow direct invocation: python transport_modes/heston_quantiles.py ...
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -198,7 +198,7 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--eta", nargs=6, type=float, required=True,
                    metavar=tuple(k.upper() for k in PARAMETER_NAMES))
-    p.add_argument("--out", type=Path, default=Path("five_mode_transport/results/example_quantiles.npz"))
+    p.add_argument("--out", type=Path, default=Path("transport_modes/results/example_quantiles.npz"))
     p.add_argument("--n-fft", type=int, default=4096)
     args = p.parse_args()
     cfg = QuantileConfig(n_fft=args.n_fft)

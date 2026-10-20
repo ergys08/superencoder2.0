@@ -7,8 +7,8 @@ IMPORTANT: A basis fitted on one sampling region is not automatically accurate
 outside it. 'Minimum required modes' always means minimum observed fidelity
 threshold among the saved basis prefixes, not the intrinsic target dimension.
 Run from repository root, e.g.:
-  python -m five_mode_transport.rank_profile \
-    --basis five_mode_transport/results/main/transport_basis.npz \
+  python -m transport_modes.rank_profile \
+    --basis transport_modes/results/main/transport_basis.npz \
     --eta 0.05 0.04 2.0 0.04 0.30 -0.70 \
     --thresholds 0.99 0.999 0.9999
 """
@@ -172,7 +172,7 @@ def main() -> None:
                         default=[0.99,0.999,0.9999])
     parser.add_argument("--max-modes",type=int,default=None)
     parser.add_argument("--out",type=Path,
-                        default=Path("five_mode_transport/results/rank_profile"))
+                        default=Path("transport_modes/results/rank_profile"))
     args=parser.parse_args()
     result=rank_profile(args.eta,load_basis(args.basis),
                         args.thresholds,args.max_modes)

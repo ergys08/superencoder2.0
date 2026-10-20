@@ -2,14 +2,14 @@
 import json
 import numpy as np
 import pytest
-from five_mode_transport.heston_quantiles import (
+from transport_modes.heston_quantiles import (
     QuantileConfig,ORIGINAL_BOUNDS,grid_weights,heston_quantiles,
     quantiles_to_probabilities,validate_eta,
 )
-from five_mode_transport.discover_transport_modes import (
+from transport_modes.discover_transport_modes import (
     sample_shell,fit_reference_modes,project,corners,run,
 )
-from five_mode_transport.fit_transport import load_basis,fit_model,out_of_range
+from transport_modes.fit_transport import load_basis,fit_model,out_of_range
 
 REF=ORIGINAL_BOUNDS.mean(axis=1)
 
@@ -122,7 +122,7 @@ def test_end_to_end_basis_and_fit(tmp_path):
 
 def test_uses_saved_historical_quantiles_and_preserves_split(tmp_path):
     """Original-study NPZ option must reuse supplied quantiles and bins."""
-    from five_mode_transport.discover_transport_modes import sample_box
+    from transport_modes.discover_transport_modes import sample_box
     cfg=QuantileConfig(n_fft=1024,n_quantiles=64)
     eta=sample_box(ORIGINAL_BOUNDS,12,10)
     laws=[heston_quantiles(e,cfg) for e in eta]
@@ -148,7 +148,7 @@ def test_uses_saved_historical_quantiles_and_preserves_split(tmp_path):
 
 
 def test_empirical_reach_requires_consecutive_shell_successes():
-    from five_mode_transport.discover_transport_modes import empirical_reach
+    from transport_modes.discover_transport_modes import empirical_reach
     data=[{'radius':0.,'n_modes':5,'min_fidelity':.99999},
           {'radius':.1,'n_modes':5,'min_fidelity':.99991},
           {'radius':.2,'n_modes':5,'min_fidelity':.9997},

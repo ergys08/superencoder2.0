@@ -1,6 +1,6 @@
 # Reference-anchored quantile transport (without a neural network)
 
-This self-contained experiment lives in `superencoder2.0/five_mode_transport/`.
+This self-contained experiment lives in `superencoder2.0/transport_modes/`.
 It reproduces the **classical quantile transport** part of the earlier
 [`ergys08/optimal-transport`](https://github.com/ergys08/optimal-transport)
 experiment, then changes the experiment to ask a more specific question:
@@ -30,23 +30,23 @@ repo's requirements installed (`pip install -r requirements.txt`).
 ### A. Calculate quantiles for one Heston model
 
 ```bash
-python -m five_mode_transport.heston_quantiles \
+python -m transport_modes.heston_quantiles \
   --eta 0.05 0.04 2.0 0.04 0.30 -0.70 \
-  --out five_mode_transport/results/example_quantiles.npz
+  --out transport_modes/results/example_quantiles.npz
 ```
 
 ### B. Discover modes across the **same original Heston parameter range**
 
 ```bash
 # First check the workflow (small, non-research-grade dataset).
-python -m five_mode_transport.discover_transport_modes --quick \
-  --out five_mode_transport/results/smoke
+python -m transport_modes.discover_transport_modes --quick \
+  --out transport_modes/results/smoke
 
 # Reproducible full study with reference fixed at the original box midpoint.
-python -m five_mode_transport.discover_transport_modes \
+python -m transport_modes.discover_transport_modes \
   --n-train 256 --n-validation 96 --n-test 128 \
   --max-modes 12 --threshold 0.9999 --criterion worst \
-  --out five_mode_transport/results/main
+  --out transport_modes/results/main
 ```
 
 Original parameter ranges, **unchanged**:
@@ -64,9 +64,9 @@ To reuse the actual 2,100 distributions and 70/15/15 splits from the original
 experiment rather than regenerate them, use:
 
 ```bash
-python -m five_mode_transport.discover_transport_modes \
+python -m transport_modes.discover_transport_modes \
   --historical-dataset ../optimal-transport/results/dataset.npz \
-  --out five_mode_transport/results/original_2100
+  --out transport_modes/results/original_2100
 ```
 
 This option requires the generated NPZ in the adjacent repository; it was not
@@ -80,10 +80,10 @@ The reference defaults to the midpoint vector
 If you want another reference or a narrower region:
 
 ```bash
-python -m five_mode_transport.discover_transport_modes \
+python -m transport_modes.discover_transport_modes \
   --reference 0.05 0.04 2.0 0.04 0.30 -0.70 \
-  --bounds-json five_mode_transport/example_bounds.json \
-  --out five_mode_transport/results/custom
+  --bounds-json transport_modes/example_bounds.json \
+  --out transport_modes/results/custom
 ```
 
 The optional JSON bounds file can be an array of six `[lower,upper]` pairs
@@ -95,16 +95,16 @@ must be inside the box. The original ranges are used by default.
 
 ```bash
 # Uses the rank recommended in the saved basis:
-python -m five_mode_transport.fit_transport \
-  --basis five_mode_transport/results/main/transport_basis.npz \
+python -m transport_modes.fit_transport \
+  --basis transport_modes/results/main/transport_basis.npz \
   --eta 0.05 0.04 2.0 0.04 0.30 -0.70 \
-  --out five_mode_transport/results/fitted_model
+  --out transport_modes/results/fitted_model
 
 # Force precisely five modes, regardless of the recommendation:
-python -m five_mode_transport.fit_transport \
-  --basis five_mode_transport/results/main/transport_basis.npz \
+python -m transport_modes.fit_transport \
+  --basis transport_modes/results/main/transport_basis.npz \
   --eta 0.05 0.04 2.0 0.04 0.30 -0.70 \
-  --modes 5 --out five_mode_transport/results/fitted_five_modes
+  --modes 5 --out transport_modes/results/fitted_five_modes
 ```
 
 `fit_report.json` gives the fidelity, fitted coefficients, normalised distance
@@ -234,7 +234,7 @@ Generate the complete data in one run, then open the plots and CSV files.
 
 ## Shared SVD language: how many modes does any target need?
 
-**New command:** `five_mode_transport.rank_profile`.
+**New command:** `transport_modes.rank_profile`.
 
 The discovery command already fits a **single common, weighted SVD basis** to
 the sampled reference-relative displacements `Q_eta - Q_ref`, without mean
@@ -246,11 +246,11 @@ orthogonal projection against the exact target quantiles.
 To study a particular target, evaluate EVERY prefix of that common basis:
 
 ```bash
-python -m five_mode_transport.rank_profile \
-  --basis five_mode_transport/results/main/transport_basis.npz \
+python -m transport_modes.rank_profile \
+  --basis transport_modes/results/main/transport_basis.npz \
   --eta 0.05 0.04 2.0 0.04 0.30 -0.70 \
   --thresholds 0.99 0.999 0.9999 \
-  --out five_mode_transport/results/target_A
+  --out transport_modes/results/target_A
 ```
 
 `rank_profile.json` gives a row for zero modes (identity), then 1 through the
